@@ -1,5 +1,5 @@
 #include <stdio.h>
-#include "lexer.c"
+#include "parser.c"
 
 int main(int argc, char ** argv)
 {
@@ -9,8 +9,8 @@ int main(int argc, char ** argv)
 
     tokenize(line, len);
 
-    for (int i = 0; i < tokens_len; i++)
-    {
-        printf("%.*s\n", (int)tokens[i]->token_len, tokens[i]->token_pos);
-    }
+    int result = resolve_expression(parse_expression());
+
+    printf("%d\n", result);
+
 }

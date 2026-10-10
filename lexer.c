@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include <assert.h>
 #include <stdlib.h>
+#include <string.h>
 
 
 #define WHITESPACE  \
@@ -23,12 +24,12 @@
     case '9'
 
 typedef enum TOKEN_TYPE {
-    NUMBER,
-    PLUS,
-    MINUS,
-    DIV,
-    MULT,
-    END_OF_FILE
+    TOK_NUMBER,
+    TOK_PLUS,
+    TOK_MINUS,
+    TOK_DIV,
+    TOK_MULT,
+    Eof
 } TOKEN_TYPE;
 
 
@@ -37,18 +38,20 @@ typedef struct Token {
     TOKEN_TYPE type;
     char *token_pos;
     size_t token_len;
+    int number_value;
 } Token;
 
-Token *new_token(TOKEN_TYPE type, char *pos, size_t len)
+Token *new_token(TOKEN_TYPE type, char *pos, size_t len, int number_value)
 {
     Token *tok = malloc(sizeof(Token));
     tok->type = type;
     tok->token_pos = pos;
     tok->token_len = len;
+    tok->number_value = number_value;
     return tok;
 }
 
-Token *tokens[256];
+Token *tokens[256] = {0};
 size_t tokens_len = 0;
 void tokens_append(Token *tok)
 {
@@ -56,10 +59,23 @@ void tokens_append(Token *tok)
     tokens[tokens_len++] = tok;
 }
 
+size_t lexer_i = 0;
+Token *lexer_next() 
+{ 
+    if (lexer_i < 256)
+        return tokens[lexer_i++]; 
+}
+
+Token *lexer_peek() { 
+    if (lexer_i < 256)
+        return tokens[lexer_i]; 
+}
+
 typedef struct Tokenize {
     bool in_token;
     char *token_begin;
     size_t token_len;
+    int number_value;
     TOKEN_TYPE token_state;
 } Tokenize;
 
@@ -69,6 +85,7 @@ void tokenize_begin(Tokenize *tokenize, char *pos, TOKEN_TYPE type)
     tokenize->token_begin = pos;
     tokenize->token_len = 0;
     tokenize->token_state = type;
+    tokenize->number_value = 0;
 }
 
 void tokenize_next(Tokenize *tokenize)
@@ -78,8 +95,16 @@ void tokenize_next(Tokenize *tokenize)
 
 Token *tokenize_end(Tokenize *tokenize)
 {
-    Token * token = new_token(tokenize->token_state, tokenize->token_begin, tokenize->token_len);
-    tokenize_begin(tokenize, NULL, END_OF_FILE);
+    if (tokenize->token_state == TOK_NUMBER)
+    {
+        char num[tokenize->token_len + 1];
+        memcpy(num, (void *) tokenize->token_begin, tokenize->token_len);
+        num[tokenize->token_len + 1] = '\0';
+        tokenize->number_value = strtoul(num, NULL, 10);
+    }
+
+    Token * token = new_token(tokenize->token_state, tokenize->token_begin, tokenize->token_len, tokenize->number_value);
+    tokenize_begin(tokenize, NULL, Eof);
     return token;
 }
 
@@ -92,35 +117,35 @@ void tokenize_error(Tokenize *tokenize)
 int tokenize(char *input, size_t len)
 {
     Tokenize tokenize;
-    tokenize_begin(&tokenize, NULL , END_OF_FILE);
+    tokenize_begin(&tokenize, NULL , Eof);
 
     for (int i = 0; i < len; i++)
     {
         char *c = &input[i];
         switch (tokenize.token_state)
         {
-            case END_OF_FILE: // beginning
+            case Eof: // beginning
                 switch (*c)
                 {
                     case DIGIT:
-                        tokenize_begin(&tokenize, c, NUMBER);
+                        tokenize_begin(&tokenize, c, TOK_NUMBER);
                         tokenize_next(&tokenize);
                         break;    
         
                     case '+':
-                        tokens_append(new_token(PLUS, c, 1));
+                        tokens_append(new_token(TOK_PLUS, c, 1, 0));
                         break;
 
                     case '-':
-                        tokens_append(new_token(MINUS, c, 1));
+                        tokens_append(new_token(TOK_MINUS, c, 1, 0));
                         break;
 
                     case '*':
-                        tokens_append(new_token(MULT, c, 1));
+                        tokens_append(new_token(TOK_MULT, c, 1, 0));
                         break;
 
                     case '/':
-                        tokens_append(new_token(DIV, c, 1));
+                        tokens_append(new_token(TOK_DIV, c, 1, 0));
                         break;
 
                     case WHITESPACE:
@@ -130,7 +155,7 @@ int tokenize(char *input, size_t len)
 
                 break;
             
-            case NUMBER:
+            case TOK_NUMBER:
                 switch (*c)
                 {
                     case DIGIT:
@@ -149,6 +174,8 @@ int tokenize(char *input, size_t len)
             break;
         }
     }
+
+    tokens_append(tokenize_end(&tokenize));
 
     return 0;
 
