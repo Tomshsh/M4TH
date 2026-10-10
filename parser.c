@@ -32,6 +32,31 @@ struct Expr {
     ExprType type;
 };
 
+typedef struct binding_power_tuple {
+    float l_bp;
+    float r_bp;
+} binding_power_tuple;
+
+binding_power_tuple infix_binding_power(Token op) 
+{
+    binding_power_tuple tuple;
+    switch (op.type)
+    {
+    case TOK_PLUS:
+    case TOK_MINUS:
+        tuple.l_bp = 1;
+        tuple.r_bp = 1.1;
+        break;
+    case TOK_DIV:
+    case TOK_MULT:
+        tuple.l_bp = 2;
+        tuple.r_bp = 2.1;
+        break;
+    }
+
+    return tuple;
+}
+
 Expr *new_expression()
 {
     Expr *expression = malloc(sizeof(Expr));
@@ -56,21 +81,30 @@ Expr *new_number(Token tok)
     return expr;
 }
 
-Expr *parse_expression()
+Expr *parse_expression(float min_bp)
 {
     Token left = *lexer_next();
     parser_assert(left.type == TOK_NUMBER, "bad token!");
     
     Expr *lhs = new_number(left);
     
-    Token operator = *lexer_peek();
-    parser_assert(operator.type != TOK_NUMBER, "bad_token!");
-
-    if (operator.type != Eof)
+    
+    
+    while (true)
     {
+        Token operator = *lexer_peek();
+        parser_assert(operator.type != TOK_NUMBER, "bad token!");
+
+        if (operator.type == Eof)
+            break;
+
+        binding_power_tuple bp = infix_binding_power(operator);
+        if (bp.l_bp < min_bp)
+            break;
+
         operator = *lexer_next();
-        Expr *rhs = parse_expression();
-        return new_binary(lhs, rhs, operator);
+        Expr *rhs = parse_expression(bp.r_bp);
+        lhs = new_binary(lhs, rhs, operator);
     }
     
     return lhs;
@@ -81,8 +115,8 @@ int resolve_expression(Expr *expr)
     if (expr->type == EXPR_NUMBER)
         return expr->number.num.number_value;
 
-    int left = resolve_expression(expr->binary.left);
     int right = resolve_expression(expr->binary.right);
+    int left = resolve_expression(expr->binary.left);
 
     switch (expr->binary.op.type)
     {

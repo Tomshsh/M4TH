@@ -9,7 +9,7 @@ int main(int argc, char ** argv)
 
     tokenize(line, len);
 
-    int result = resolve_expression(parse_expression());
+    int result = resolve_expression(parse_expression(0));
 
     printf("%d\n", result);
 
